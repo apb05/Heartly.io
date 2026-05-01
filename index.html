@@ -1,174 +1,219 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Heartly Dashboard</title>
-    <meta
-      name="description"
-      content="Minimal heart activity safety dashboard driven by wearable API payload input."
-    />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <p class="eyebrow">Heart Activity Safety Evaluation</p>
-          <h1>Heartly</h1>
-          <p class="subtle">Enter the current numbers and Heartly will flag whether the pattern looks concerning and why.</p>
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heartly Clinical Decision Dashboard</title>
+  <meta name="description"
+    content="Rules-based heart safety monitoring system using simulated wearable technology API input." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap"
+    rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Rules-Based Heart Safety Monitoring System (Simulation Mode)</p>
+        <h1>Heartly Clinical Monitor</h1>
+        <p class="subtle">
+          Safety-first cardiovascular decision support using deterministic rules and simulated wearable technology
+          observations.
+        </p>
+      </div>
+      <div class="topbar-actions">
+        <button type="button" class="button button-secondary" id="reset-data">Reset sample</button>
+        <button type="button" class="button button-primary" id="apply-api-payload">Simulation active</button>
+      </div>
+    </header>
+
+    <section class="decision-grid">
+      <article class="panel assessment-panel" id="hero-status-card">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Current Assessment</p>
+            <h2 id="heart-status">NORMAL</h2>
+          </div>
+          <div class="severity-chip" id="concern-pill">Stable</div>
         </div>
-        <div class="topbar-actions">
-          <button type="button" class="button button-secondary" id="reset-data">Reset sample</button>
-          <button type="button" class="button button-primary" id="apply-api-payload">Apply payload</button>
+        <p class="assessment-copy" id="heart-summary">No immediate concerning pattern detected.</p>
+      </article>
+
+      <article class="panel action-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Recommended Action</p>
+            <h2 id="recommendation-title">Light activity may be considered</h2>
+          </div>
         </div>
-      </header>
+        <p class="action-copy" id="recommendation-copy">
+          Current cardiovascular observations remain within expected personal baseline.
+        </p>
+        <p class="action-timing" id="action-timing">Repeat check in 15 minutes.</p>
+      </article>
 
-      <section class="summary-grid">
-        <article class="status-card status-card-primary" id="hero-status-card">
-          <p class="metric-label">Concern Level</p>
-          <h2 id="heart-status">NORMAL</h2>
-          <p id="heart-summary">No immediate concerning pattern detected.</p>
-          <div class="status-pill" id="concern-pill">Not concerning right now</div>
-        </article>
+      <article class="panel trigger-panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Decision Trigger</p>
+            <h2 id="decision-trigger">No threshold breach identified in current observation set.</h2>
+          </div>
+        </div>
+        <p class="trigger-meta" id="trigger-meta">Baseline: 55-68 bpm. Resting HR: 62 bpm.</p>
+      </article>
+    </section>
 
-        <article class="status-card">
-          <p class="metric-label">Guidance</p>
-          <h3 id="recommendation-title">Light activity may be considered</h3>
-          <p id="recommendation-copy">
-            Higher-priority safety checks are clear and current heart data does not show a concerning deviation.
-          </p>
-        </article>
-
-        <article class="status-card">
-          <p class="metric-label">Caregiver Alert</p>
-          <h3 id="caregiver-status">false</h3>
-          <p id="alert-state">Next check: 15 min</p>
-        </article>
+    <section class="support-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Decision Rationale</p>
+            <h2>Triggered checks</h2>
+          </div>
+        </div>
+        <details class="rationale-details" open>
+          <summary>View supporting rule checks</summary>
+          <ul class="rationale-list" id="rule-stack"></ul>
+        </details>
       </section>
 
-      <section class="detail-grid">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Input</p>
-              <h2>Heart and activity numbers</h2>
-            </div>
-            <div class="last-updated" id="last-updated">Updated just now</div>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">System Info</p>
+            <h2>Escalation and reference status</h2>
           </div>
-          <form class="monitor-form" id="monitor-form">
-            <label class="field">
-              <span>Baseline resting HR low</span>
-              <input id="baseline-low" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Baseline resting HR high</span>
-              <input id="baseline-high" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Current resting HR</span>
-              <input id="resting-hr" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Peak HR during light activity</span>
-              <input id="activity-hr" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Recovery HR drop after 5 min</span>
-              <input id="recovery-drop" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Expected recovery drop</span>
-              <input id="recovery-baseline" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Steps today</span>
-              <input id="steps" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Active minutes</span>
-              <input id="active-minutes" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Inactive hours</span>
-              <input id="inactive-hours" type="number" inputmode="decimal" min="0" step="0.1" />
-            </label>
-            <label class="field">
-              <span>Clinician HR limit</span>
-              <input id="clinician-limit" type="number" inputmode="numeric" min="0" />
-            </label>
-            <label class="field">
-              <span>Declining activity over past days</span>
-              <select id="declining-activity">
-                <option value="false">No</option>
-                <option value="true">Yes</option>
-              </select>
-            </label>
-            <label class="field checkbox-field">
-              <input id="caregiver-enabled" type="checkbox" />
-              <span>Caregiver alerts enabled</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="sudden-spike" type="checkbox" />
-              <span>Sudden HR spike above baseline</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="sudden-drop" type="checkbox" />
-              <span>Sudden HR drop below baseline</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="symptom-dizziness" type="checkbox" />
-              <span>Dizziness</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="symptom-breath" type="checkbox" />
-              <span>Shortness of breath</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="symptom-chest" type="checkbox" />
-              <span>Chest discomfort</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="symptom-fatigue" type="checkbox" />
-              <span>Unusual fatigue</span>
-            </label>
-            <label class="field checkbox-field">
-              <input id="symptom-fainting" type="checkbox" />
-              <span>Fainting</span>
-            </label>
-          </form>
-        </section>
+          <div class="last-updated" id="last-updated">Updated just now</div>
+        </div>
+        <div class="system-info-grid">
+          <article class="info-card">
+            <p class="metric-label">Caregiver Alert</p>
+            <h3 id="caregiver-status">Off</h3>
+          </article>
+          <article class="info-card">
+            <p class="metric-label">Escalation Status</p>
+            <h3 id="alert-state">Routine review</h3>
+          </article>
+          <article class="info-card">
+            <p class="metric-label">Baseline Reference Window</p>
+            <h3 id="baseline-window">7-day baseline</h3>
+          </article>
+          <article class="info-card">
+            <p class="metric-label">Data Integrity</p>
+            <h3 id="data-integrity">Complete observation set</h3>
+          </article>
+        </div>
+      </section>
+    </section>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">Why</p>
-              <h2>Concern checks and reasoning</h2>
-            </div>
+    <section class="detail-grid">
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Simulated Wearable Data (API Input)</p>
+            <h2>Simulation Mode: Wearable API Input</h2>
           </div>
-          <section class="reasoning-card" id="reasoning-card">
-            <p class="metric-label">Reasoning</p>
-            <h3 id="reasoning-title">No immediate concern detected</h3>
-            <p class="reasoning-copy" id="reasoning-copy">
-              Higher-priority safety checks are clear and the current heart data does not show a concerning deviation.
-            </p>
-            <p class="reasoning-meta" id="reasoning-meta">Next check in 15 minutes. Caregiver alert is off.</p>
-          </section>
-          <div class="rule-stack" id="rule-stack"></div>
-          <div class="payload-block">
-            <p class="metric-label">Output Summary</p>
-            <div class="payload-summary" id="payload-summary"></div>
-          </div>
-        </section>
+        </div>
+        <div class="ingestion-grid" id="payload-summary"></div>
       </section>
 
-      <script src="script.js"></script>
-    </main>
-  </body>
+      <section class="panel">
+        <div class="panel-head">
+          <div>
+            <p class="eyebrow">Simulation Controls</p>
+            <h2>Observation feed configuration</h2>
+          </div>
+        </div>
+        <form class="monitor-form" id="monitor-form">
+          <label class="field">
+            <span>Baseline resting HR low</span>
+            <input id="baseline-low" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Baseline resting HR high</span>
+            <input id="baseline-high" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Current resting HR</span>
+            <input id="resting-hr" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Peak HR during light activity</span>
+            <input id="activity-hr" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Recovery HR drop after 5 min</span>
+            <input id="recovery-drop" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Expected recovery drop</span>
+            <input id="recovery-baseline" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Steps today</span>
+            <input id="steps" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Active minutes</span>
+            <input id="active-minutes" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Inactive hours</span>
+            <input id="inactive-hours" type="number" inputmode="decimal" min="0" step="0.1" />
+          </label>
+          <label class="field">
+            <span>Clinician HR limit</span>
+            <input id="clinician-limit" type="number" inputmode="numeric" min="0" />
+          </label>
+          <label class="field">
+            <span>Declining activity over past days</span>
+            <select id="declining-activity">
+              <option value="false">No</option>
+              <option value="true">Yes</option>
+            </select>
+          </label>
+          <label class="field checkbox-field">
+            <input id="caregiver-enabled" type="checkbox" />
+            <span>Caregiver alerts enabled</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="sudden-spike" type="checkbox" />
+            <span>Sudden HR spike above baseline</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="sudden-drop" type="checkbox" />
+            <span>Sudden HR drop below baseline</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="symptom-dizziness" type="checkbox" />
+            <span>Dizziness</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="symptom-breath" type="checkbox" />
+            <span>Shortness of breath</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="symptom-chest" type="checkbox" />
+            <span>Chest discomfort</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="symptom-fatigue" type="checkbox" />
+            <span>Unusual fatigue</span>
+          </label>
+          <label class="field checkbox-field">
+            <input id="symptom-fainting" type="checkbox" />
+            <span>Fainting</span>
+          </label>
+        </form>
+      </section>
+    </section>
+
+    <script src="script.js"></script>
+  </main>
+</body>
+
 </html>

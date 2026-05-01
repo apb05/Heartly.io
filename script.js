@@ -22,24 +22,6 @@ const defaultState = {
   caregiverEnabled: true,
 };
 
-const defaultPayload = {
-  baselineLowHr: 55,
-  baselineHighHr: 68,
-  restingHrToday: 62,
-  peakHrLightActivity: 101,
-  recoveryHrDrop5Min: 18,
-  expectedRecoveryDrop: 15,
-  steps: 4632,
-  activeMinutes: 32,
-  inactiveHours: 7.2,
-  decliningActivityPastDays: false,
-  suddenHrSpikeAboveBaseline: false,
-  suddenHrDropBelowBaseline: false,
-  symptomsReported: [],
-  clinicianHrLimit: null,
-  caregiverEnabled: true,
-};
-
 const fieldIds = {
   baselineLow: "baseline-low",
   baselineHigh: "baseline-high",
@@ -62,6 +44,44 @@ const fieldIds = {
   caregiverEnabled: "caregiver-enabled",
 };
 
+const severityStyles = {
+  NORMAL: {
+    chip: "Stable",
+    border: "rgba(21, 128, 61, 0.24)",
+    background: "rgba(233, 248, 238, 0.98)",
+    chipBackground: "#e9f8ee",
+    chipColor: "#15803d",
+  },
+  MONITOR: {
+    chip: "Monitor",
+    border: "rgba(18, 93, 149, 0.24)",
+    background: "rgba(234, 244, 251, 0.98)",
+    chipBackground: "#eaf4fb",
+    chipColor: "#125d95",
+  },
+  CAUTION: {
+    chip: "Caution",
+    border: "rgba(183, 121, 31, 0.26)",
+    background: "rgba(255, 245, 223, 0.98)",
+    chipBackground: "#fff5df",
+    chipColor: "#b7791f",
+  },
+  ALERT: {
+    chip: "Alert",
+    border: "rgba(180, 35, 24, 0.24)",
+    background: "rgba(254, 235, 232, 0.98)",
+    chipBackground: "#feebe8",
+    chipColor: "#b42318",
+  },
+  CRITICAL: {
+    chip: "Critical",
+    border: "rgba(180, 35, 24, 0.32)",
+    background: "rgba(252, 225, 220, 0.98)",
+    chipBackground: "#f9d5cf",
+    chipColor: "#8d1f17",
+  },
+};
+
 const resetButton = document.getElementById("reset-data");
 const lastUpdated = document.getElementById("last-updated");
 const payloadSummary = document.getElementById("payload-summary");
@@ -81,132 +101,13 @@ function saveState(state) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function buildPayloadFromState(state) {
-  return {
-    baselineLowHr: state.baselineLow,
-    baselineHighHr: state.baselineHigh,
-    restingHrToday: state.restingHr,
-    peakHrLightActivity: state.activityHr,
-    recoveryHrDrop5Min: state.recoveryDrop,
-    expectedRecoveryDrop: state.recoveryBaseline,
-    steps: state.steps,
-    activeMinutes: state.activeMinutes,
-    inactiveHours: state.inactiveHours,
-    decliningActivityPastDays: state.decliningActivity === "true",
-    suddenHrSpikeAboveBaseline: state.suddenSpike,
-    suddenHrDropBelowBaseline: state.suddenDrop,
-    symptomsReported: currentSymptoms(state),
-    clinicianHrLimit: state.clinicianLimit,
-    caregiverEnabled: state.caregiverEnabled,
-  };
-}
-
-function renderPayload(state, result) {
-  const summaryLines = [];
-  const primaryRule = result.rules.find((item) => item.severity !== "green") ?? result.rules[0];
-  const symptoms = currentSymptoms(state);
-
-  summaryLines.push(`${result.output.heartStatus}. ${result.output.reason}`);
-
-  if (primaryRule) {
-    summaryLines.push(`The decision is mainly driven by this check: ${primaryRule.detail}`);
+function formatBpmRange(low, high) {
+  if (typeof low !== "number" || typeof high !== "number") {
+    return "Unavailable";
   }
-
-  if (result.output.status === "CRITICAL" || result.output.status === "ALERT") {
-    if (symptoms.length > 0) {
-      summaryLines.push(`Reported symptoms for this reading are ${symptoms.join(", ")}. These symptoms override otherwise reassuring metrics.`);
-    }
-
-    if (state.suddenSpike || state.suddenDrop) {
-      summaryLines.push(
-        state.suddenSpike && state.suddenDrop
-          ? "Both a sudden spike and a sudden drop were marked, which Heartly treats as an abrupt heart-rate change."
-          : state.suddenSpike
-            ? "A sudden spike above baseline was marked, which Heartly treats as an abrupt heart-rate change."
-            : "A sudden drop below baseline was marked, which Heartly treats as an abrupt heart-rate change."
-      );
-    }
-  } else if (result.output.status === "CAUTION") {
-    summaryLines.push(
-      `Resting heart rate is ${state.restingHr} bpm, compared with a baseline range of ${state.baselineLow} to ${state.baselineHigh} bpm. Peak light-activity heart rate is ${state.activityHr} bpm, and 5-minute recovery drop is ${state.recoveryDrop} bpm against an expected ${state.recoveryBaseline} bpm.`
-    );
-  } else if (result.output.status === "MONITOR") {
-    summaryLines.push(
-      `Today's activity pattern shows ${state.steps} steps, ${state.activeMinutes} active minutes, and ${state.inactiveHours} inactive hours, which supports monitoring rather than an urgent stop.`
-    );
-  } else {
-    summaryLines.push(
-      `Resting heart rate stays within the baseline range, light-activity heart rate is not beyond the expected threshold, and recovery meets the expected drop.`
-    );
-  }
-
-  summaryLines.push(
-    `Caregiver alert is ${result.output.caregiverAlert ? "on" : "off"}, and another check is recommended in ${result.output.nextCheckMinutes} minutes.`
-  );
-
-  payloadSummary.innerHTML = summaryLines.map((line) => `<p>${line}</p>`).join("");
-}
-
-function buildReasoningText(result) {
-  const { output } = result;
-  const caregiverText = output.caregiverAlert ? "on" : "off";
-
-  return {
-    title:
-      output.status === "CRITICAL"
-        ? "This looks urgently concerning"
-        : output.status === "ALERT"
-          ? "This looks concerning"
-          : output.status === "CAUTION"
-            ? "This may be concerning"
-            : output.status === "MONITOR"
-              ? "This is not urgent, but it should be monitored"
-              : "This does not look concerning right now",
-    copy: `${output.reason} ${output.movementRecommendation}.`,
-    meta: `Next check in ${output.nextCheckMinutes} minutes. Caregiver alert is ${caregiverText}.`,
-  };
-}
-
-function readStateFromForm() {
-  const form = document.getElementById("monitor-form");
-  if (!form) return loadState();
-  const next = {};
-
-  Object.entries(fieldIds).forEach(([key, id]) => {
-    const element = document.getElementById(id);
-    if (element.type === "checkbox") {
-      next[key] = element.checked;
-    } else if (element.tagName === "SELECT") {
-      next[key] = element.value;
-    } else if (element.type === "number") {
-      next[key] = element.value === "" ? null : Number(element.value);
-    } else {
-      next[key] = element.value;
-    }
-  });
-
-  return next;
-}
-
-function writeStateToForm(state) {
-  const form = document.getElementById("monitor-form");
-  if (!form) return;
-  Object.entries(fieldIds).forEach(([key, id]) => {
-    const element = document.getElementById(id);
-    if (!element) return;
-
-    if (element.type === "checkbox") {
-      element.checked = Boolean(state[key]);
-    } else if (element.tagName === "SELECT") {
-      element.value = state[key];
-    } else {
-      element.value = state[key] ?? "";
-    }
-  });
-}
-
-function rule(label, severity, detail) {
-  return { label, severity, detail };
+  const safeLow = Math.min(low, high);
+  const safeHigh = Math.max(low, high);
+  return `${safeLow}-${safeHigh} bpm`;
 }
 
 function currentSymptoms(state) {
@@ -219,273 +120,336 @@ function currentSymptoms(state) {
   return names;
 }
 
+function rule(label, severity, detail) {
+  return { label, severity, detail };
+}
+
 function isSevereSymptoms(symptoms) {
   return symptoms.includes("chest discomfort") || symptoms.includes("fainting");
 }
 
+function loadDecisionShell() {
+  return {
+    status: "MONITOR",
+    assessment: "Observation set incomplete",
+    recommendation: "Complete data ingestion before issuing activity guidance.",
+    actionTiming: "Repeat check when all required observations are available.",
+    reason: "The system requires a complete observation set before issuing a full movement recommendation.",
+    trigger: "Required physiological observations are missing.",
+    triggerMeta: "Decision based on partial data only.",
+    escalationStatus: "Clinical review deferred pending complete data",
+    caregiverAlert: false,
+    nextCheckMinutes: 15,
+    baselineWindow: "7-day baseline",
+    dataIntegrity: "Incomplete observation set",
+  };
+}
+
 function evaluateState(state) {
+  const baselineLow =
+    typeof state.baselineLow === "number" && typeof state.baselineHigh === "number"
+      ? Math.min(state.baselineLow, state.baselineHigh)
+      : state.baselineLow;
+  const baselineHigh =
+    typeof state.baselineLow === "number" && typeof state.baselineHigh === "number"
+      ? Math.max(state.baselineLow, state.baselineHigh)
+      : state.baselineHigh;
+
+  const normalizedState = {
+    ...state,
+    baselineLow,
+    baselineHigh,
+  };
+
   const requiredNumericFields = [
-    ["baseline resting HR low", state.baselineLow],
-    ["baseline resting HR high", state.baselineHigh],
-    ["current resting HR", state.restingHr],
-    ["peak HR during light activity", state.activityHr],
-    ["recovery HR drop after activity", state.recoveryDrop],
-    ["expected recovery baseline", state.recoveryBaseline],
-    ["steps today", state.steps],
-    ["active minutes", state.activeMinutes],
-    ["inactive hours", state.inactiveHours],
+    ["baseline resting HR low", normalizedState.baselineLow],
+    ["baseline resting HR high", normalizedState.baselineHigh],
+    ["current resting HR", normalizedState.restingHr],
+    ["peak HR during light activity", normalizedState.activityHr],
+    ["recovery HR drop after activity", normalizedState.recoveryDrop],
+    ["expected recovery baseline", normalizedState.recoveryBaseline],
+    ["steps today", normalizedState.steps],
+    ["active minutes", normalizedState.activeMinutes],
+    ["inactive hours", normalizedState.inactiveHours],
   ];
+
   const missingFields = requiredNumericFields
     .filter(([, value]) => value === null || Number.isNaN(value))
     .map(([label]) => label);
-  const symptoms = currentSymptoms(state);
+
+  const symptoms = currentSymptoms(normalizedState);
   const redFlagSymptoms = symptoms.filter((item) =>
     ["shortness of breath", "chest discomfort", "fainting"].includes(item)
   );
   const severeSymptoms = isSevereSymptoms(symptoms);
+  const baselineRange = baselineHigh - baselineLow;
   const clinicianLimitActive =
-    typeof state.clinicianLimit === "number" &&
-    state.clinicianLimit > 0 &&
-    state.activityHr !== null &&
-    state.activityHr > state.clinicianLimit;
+    typeof normalizedState.clinicianLimit === "number" &&
+    normalizedState.clinicianLimit > 0 &&
+    normalizedState.activityHr !== null &&
+    normalizedState.activityHr > normalizedState.clinicianLimit;
   const elevatedResting =
-    state.restingHr !== null &&
-    state.baselineHigh !== null &&
-    state.restingHr > state.baselineHigh;
-  const baselineRange = state.baselineHigh - state.baselineLow;
+    normalizedState.restingHr !== null &&
+    baselineHigh !== null &&
+    normalizedState.restingHr > baselineHigh;
   const highDuringLight =
-    state.activityHr !== null &&
-    state.baselineHigh !== null &&
-    state.activityHr > state.baselineHigh + Math.max(12, baselineRange * 0.25);
+    normalizedState.activityHr !== null &&
+    baselineHigh !== null &&
+    normalizedState.activityHr > baselineHigh + Math.max(12, baselineRange * 0.25);
   const poorRecovery =
-    state.recoveryDrop !== null &&
-    state.recoveryBaseline !== null &&
-    state.recoveryDrop < state.recoveryBaseline;
-  const multiDayDecline = state.decliningActivity === "true";
+    normalizedState.recoveryDrop !== null &&
+    normalizedState.recoveryBaseline !== null &&
+    normalizedState.recoveryDrop < normalizedState.recoveryBaseline;
+  const multiDayDecline = normalizedState.decliningActivity === "true";
   const movementClear =
     missingFields.length === 0 &&
     redFlagSymptoms.length === 0 &&
     !clinicianLimitActive &&
-    !state.suddenSpike &&
-    !state.suddenDrop &&
+    !normalizedState.suddenSpike &&
+    !normalizedState.suddenDrop &&
     !elevatedResting &&
     !highDuringLight &&
     !poorRecovery &&
     !multiDayDecline &&
     symptoms.length === 0;
 
+  const output = loadDecisionShell();
   const rules = [];
-  let output = {
-    status: "MONITOR",
-    heartStatus: "Evaluation pending",
-    movementRecommendation: "Use caution until complete data is available",
-    reason: "The evaluation requires all manual input fields before activity guidance can be issued.",
-    caregiverAlert: false,
-    nextCheckMinutes: 15,
-  };
 
   if (missingFields.length > 0) {
     rules.push(
       rule(
-        "Missing required data",
+        "Incomplete observation set",
         "amber",
-        `No recommendation beyond caution can be made until these fields are provided: ${missingFields.join(", ")}.`
+        `Required observations missing: ${missingFields.join(", ")}.`
       )
     );
-    return { output, rules };
+    return { output, rules, normalizedState };
   }
 
   if (redFlagSymptoms.length > 0) {
-    output = {
-      status: severeSymptoms ? "CRITICAL" : "ALERT",
-      heartStatus: "Red flag symptoms reported",
-      movementRecommendation: "Stop activity and rest",
-      reason: `Red flag symptoms were reported: ${redFlagSymptoms.join(", ")}.`,
-      caregiverAlert: state.caregiverEnabled,
-      nextCheckMinutes: 5,
-    };
-    rules.push(rule("Red flag symptoms", "red", output.reason));
-    return { output, rules };
+    output.status = severeSymptoms ? "CRITICAL" : "ALERT";
+    output.assessment = "Red-flag symptoms reported";
+    output.recommendation = "Stop activity, rest, and arrange urgent clinical review.";
+    output.actionTiming = "Repeat check in 5 minutes.";
+    output.reason = `Red-flag symptoms reported: ${redFlagSymptoms.join(", ")}.`;
+    output.trigger = `Symptoms reported with immediate escalation criteria: ${redFlagSymptoms.join(", ")}.`;
+    output.triggerMeta = `Baseline: ${formatBpmRange(baselineLow, baselineHigh)}. Resting HR: ${normalizedState.restingHr} bpm.`;
+    output.escalationStatus = severeSymptoms
+      ? "Immediate escalation required"
+      : "Urgent caregiver review required";
+    output.caregiverAlert = normalizedState.caregiverEnabled;
+    output.nextCheckMinutes = 5;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Red-flag symptoms", "red", output.reason));
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("Red flag symptoms", "green", "No red flag symptoms were reported."));
 
   if (clinicianLimitActive) {
-    output = {
-      status: "ALERT",
-      heartStatus: "Clinician heart rate limit exceeded",
-      movementRecommendation: "Stop activity and rest",
-      reason: `Peak heart rate of ${state.activityHr} bpm exceeded the clinician limit of ${state.clinicianLimit} bpm.`,
-      caregiverAlert: state.caregiverEnabled,
-      nextCheckMinutes: 5,
-    };
+    output.status = "ALERT";
+    output.assessment = "Clinician limit exceeded during activity";
+    output.recommendation = "Stop activity and rest. Notify the reviewing caregiver.";
+    output.actionTiming = "Repeat check in 5 minutes.";
+    output.reason = `Peak heart rate reached ${normalizedState.activityHr} bpm and exceeded the clinician limit of ${normalizedState.clinicianLimit} bpm.`;
+    output.trigger = `Peak activity HR ${normalizedState.activityHr} bpm exceeded clinician limit ${normalizedState.clinicianLimit} bpm.`;
+    output.triggerMeta = `Baseline: ${formatBpmRange(baselineLow, baselineHigh)}.`;
+    output.escalationStatus = "Caregiver notification recommended";
+    output.caregiverAlert = normalizedState.caregiverEnabled;
+    output.nextCheckMinutes = 5;
+    output.dataIntegrity = "Complete observation set";
     rules.push(rule("Clinician heart rate limit", "red", output.reason));
-    return { output, rules };
+    return { output, rules, normalizedState };
   }
 
-  rules.push(
-    rule(
-      "Clinician heart rate limit",
-      "green",
-      state.clinicianLimit
-        ? `Peak heart rate remained at or below the clinician limit of ${state.clinicianLimit} bpm.`
-        : "No clinician heart rate limit was provided."
-    )
-  );
-
-  if (state.suddenSpike || state.suddenDrop) {
-    const eventText = state.suddenSpike && state.suddenDrop
-      ? "Sudden spike and drop were reported."
-      : state.suddenSpike
-        ? "Sudden heart rate spike above baseline was reported."
-        : "Sudden heart rate drop below baseline was reported.";
-    output = {
-      status: "ALERT",
-      heartStatus: "Abrupt heart rate change detected",
-      movementRecommendation: "Stop or avoid activity and rest",
-      reason: eventText,
-      caregiverAlert: state.caregiverEnabled && symptoms.length > 0,
-      nextCheckMinutes: 5,
-    };
-    rules.push(rule("Sudden HR spike or drop", "red", output.reason));
-    return { output, rules };
+  if (normalizedState.suddenSpike || normalizedState.suddenDrop) {
+    const eventText =
+      normalizedState.suddenSpike && normalizedState.suddenDrop
+        ? "Sudden heart rate spike and drop were reported."
+        : normalizedState.suddenSpike
+          ? "Sudden heart rate spike above baseline was reported."
+          : "Sudden heart rate drop below baseline was reported.";
+    output.status = "ALERT";
+    output.assessment = "Abrupt heart rate change detected";
+    output.recommendation = "Stop activity and rest pending repeat assessment.";
+    output.actionTiming = "Repeat check in 5 minutes.";
+    output.reason = eventText;
+    output.trigger = eventText;
+    output.triggerMeta = `Baseline: ${formatBpmRange(baselineLow, baselineHigh)}. Current resting HR: ${normalizedState.restingHr} bpm.`;
+    output.escalationStatus = normalizedState.caregiverEnabled
+      ? "Caregiver notification available if symptoms emerge"
+      : "Immediate repeat observation recommended";
+    output.caregiverAlert = normalizedState.caregiverEnabled && symptoms.length > 0;
+    output.nextCheckMinutes = 5;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Abrupt heart rate change", "red", output.reason));
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("Sudden HR spike or drop", "green", "No sudden spike or drop was reported."));
 
   if (elevatedResting) {
-    output = {
-      status: "CAUTION",
-      heartStatus: "Elevated resting heart rate",
-      movementRecommendation: "Rest today and monitor how you feel",
-      reason: `Current resting heart rate of ${state.restingHr} bpm is above the baseline high of ${state.baselineHigh} bpm.`,
-      caregiverAlert: false,
-      nextCheckMinutes: 10,
-    };
-    rules.push(rule("Elevated resting HR", "amber", output.reason));
-    return { output, rules };
+    output.status = "CAUTION";
+    output.assessment = "Resting heart rate exceeds personal baseline";
+    output.recommendation = "Rest and re-evaluate before additional activity.";
+    output.actionTiming = "Repeat check in 10 minutes.";
+    output.reason = `Resting heart rate is ${normalizedState.restingHr} bpm, above the baseline high of ${baselineHigh} bpm.`;
+    output.trigger = `Resting HR ${normalizedState.restingHr} bpm exceeds baseline ${formatBpmRange(baselineLow, baselineHigh)}.`;
+    output.triggerMeta = `Peak activity HR: ${normalizedState.activityHr} bpm. Recovery drop: ${normalizedState.recoveryDrop} bpm.`;
+    output.escalationStatus = "Repeat observation before escalation";
+    output.nextCheckMinutes = 10;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Elevated resting heart rate", "amber", output.reason));
+    if (symptoms.length > 0) {
+      rules.push(
+        rule(
+          "Reported symptoms",
+          "amber",
+          `Associated symptoms reported: ${symptoms.join(", ")}.`
+        )
+      );
+    }
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("Elevated resting HR", "green", "Resting heart rate is within the provided baseline range."));
 
   if (highDuringLight) {
-    output = {
-      status: "CAUTION",
-      heartStatus: "Elevated heart rate during light activity",
-      movementRecommendation: "Slow down or stop and rest",
-      reason: `Peak heart rate during light activity rose to ${state.activityHr} bpm, above the expected range from baseline.`,
-      caregiverAlert: false,
-      nextCheckMinutes: 5,
-    };
-    rules.push(rule("High HR during light activity", "amber", output.reason));
-    return { output, rules };
+    output.status = "CAUTION";
+    output.assessment = "Activity heart rate exceeds expected range";
+    output.recommendation = "Reduce activity intensity and rest before re-evaluation.";
+    output.actionTiming = "Repeat check in 5 minutes.";
+    output.reason = `Peak activity heart rate reached ${normalizedState.activityHr} bpm, above the expected threshold derived from baseline.`;
+    output.trigger = `Peak activity HR ${normalizedState.activityHr} bpm exceeds expected range from baseline ${formatBpmRange(baselineLow, baselineHigh)}.`;
+    output.triggerMeta = `Resting HR: ${normalizedState.restingHr} bpm.`;
+    output.escalationStatus = "Repeat observation before escalation";
+    output.nextCheckMinutes = 5;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Elevated activity heart rate", "amber", output.reason));
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("High HR during light activity", "green", "Peak heart rate during light activity is not above the expected threshold."));
 
   if (poorRecovery) {
-    output = {
-      status: symptoms.length > 0 ? "CAUTION" : "MONITOR",
-      heartStatus: "Recovery below expected baseline",
-      movementRecommendation: "Reduce activity and recheck after rest",
-      reason: `Recovery HR drop was ${state.recoveryDrop} bpm within 5 minutes, below the expected drop of ${state.recoveryBaseline} bpm.`,
-      caregiverAlert: false,
-      nextCheckMinutes: symptoms.length > 0 ? 10 : 15,
-    };
-    rules.push(rule("Poor recovery", "amber", output.reason));
-    return { output, rules };
+    output.status = symptoms.length > 0 ? "CAUTION" : "MONITOR";
+    output.assessment = "Recovery below expected baseline";
+    output.recommendation = "Reduce exertion and monitor for changes.";
+    output.actionTiming = `Repeat check in ${symptoms.length > 0 ? 10 : 15} minutes.`;
+    output.reason = `Five-minute recovery drop is ${normalizedState.recoveryDrop} bpm, below the expected ${normalizedState.recoveryBaseline} bpm.`;
+    output.trigger = `Recovery drop ${normalizedState.recoveryDrop} bpm is below expected ${normalizedState.recoveryBaseline} bpm.`;
+    output.triggerMeta = `Peak activity HR: ${normalizedState.activityHr} bpm.`;
+    output.escalationStatus = symptoms.length > 0
+      ? "Repeat observation with symptom monitoring"
+      : "Routine monitoring recommended";
+    output.nextCheckMinutes = symptoms.length > 0 ? 10 : 15;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Recovery response", "amber", output.reason));
+    if (symptoms.length > 0) {
+      rules.push(
+        rule(
+          "Reported symptoms",
+          "amber",
+          `Symptoms present during reduced recovery: ${symptoms.join(", ")}.`
+        )
+      );
+    }
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("Poor recovery", "green", "Recovery HR drop met or exceeded the expected baseline."));
 
   if (multiDayDecline) {
-    output = {
-      status: "MONITOR",
-      heartStatus: "Declining activity trend noted",
-      movementRecommendation: "Use light activity only if tolerated",
-      reason: "Declining activity over past days was reported and should be observed before encouraging more movement.",
-      caregiverAlert: false,
-      nextCheckMinutes: 15,
-    };
-    rules.push(rule("Multi-day decline", "amber", output.reason));
-    return { output, rules };
+    output.status = "MONITOR";
+    output.assessment = "Multi-day decline in activity detected";
+    output.recommendation = "Light activity only if tolerated; monitor for additional changes.";
+    output.actionTiming = "Repeat check in 15 minutes.";
+    output.reason = "A decline in activity over recent days was reported in the observation set.";
+    output.trigger = `Multi-day activity decline flagged with ${normalizedState.steps} steps and ${normalizedState.activeMinutes} active minutes today.`;
+    output.triggerMeta = `Inactive time: ${normalizedState.inactiveHours} hours.`;
+    output.escalationStatus = "Trend monitoring recommended";
+    output.nextCheckMinutes = 15;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(rule("Multi-day activity trend", "amber", output.reason));
+    return { output, rules, normalizedState };
   }
-
-  rules.push(rule("Multi-day decline", "green", "No declining multi-day activity pattern was reported."));
 
   if (movementClear) {
-    output = {
-      status: "NORMAL",
-      heartStatus: "No immediate concerning pattern detected",
-      movementRecommendation: "Your current data looks stable for light movement.",
-      reason: "Higher-priority safety checks are clear and current heart and recovery values do not show a concerning deviation.",
-      caregiverAlert: false,
-      nextCheckMinutes: 15,
-    };
-    rules.push(rule("Movement encouragement", "green", output.reason));
+    output.status = "NORMAL";
+    output.assessment = "No current threshold breach detected";
+    output.recommendation = "Light activity may continue with routine monitoring.";
+    output.actionTiming = "Repeat check in 15 minutes.";
+    output.reason =
+      "Resting heart rate, activity response, recovery, symptoms, and recent activity trend remain within expected limits.";
+    output.trigger = "No threshold breach identified in current observation set.";
+    output.triggerMeta = `Baseline: ${formatBpmRange(baselineLow, baselineHigh)}. Resting HR: ${normalizedState.restingHr} bpm.`;
+    output.escalationStatus = "Routine review";
+    output.nextCheckMinutes = 15;
+    output.dataIntegrity = "Complete observation set";
+    rules.push(
+      rule(
+        "Stable observation set",
+        "green",
+        `Resting HR ${normalizedState.restingHr} bpm remains within baseline ${formatBpmRange(baselineLow, baselineHigh)}.`
+      )
+    );
+    rules.push(
+      rule(
+        "Activity response",
+        "green",
+        `Peak activity HR ${normalizedState.activityHr} bpm and recovery drop ${normalizedState.recoveryDrop} bpm remain within expected limits.`
+      )
+    );
   }
 
-  return { output, rules };
+  return { output, rules, normalizedState };
+}
+
+function buildIngestionCards(state) {
+  const symptoms = currentSymptoms(state);
+  return [
+    ["Baseline", formatBpmRange(state.baselineLow, state.baselineHigh)],
+    ["Resting HR", `${state.restingHr} bpm`],
+    ["Peak Activity HR", `${state.activityHr} bpm`],
+    ["Recovery Drop", `${state.recoveryDrop} bpm in 5 min`],
+    ["Expected Recovery", `${state.recoveryBaseline} bpm`],
+    ["Activity Load", `${state.steps} steps / ${state.activeMinutes} active min`],
+    ["Inactive Time", `${state.inactiveHours} hours`],
+    ["Symptoms Reported", symptoms.length > 0 ? symptoms.join(", ") : "None reported"],
+  ];
+}
+
+function renderPayload(state) {
+  const cards = buildIngestionCards(state);
+  payloadSummary.innerHTML = cards
+    .map(
+      ([label, value]) =>
+        `<article class="ingestion-card"><p class="metric-label">${label}</p><p>${value}</p></article>`
+    )
+    .join("");
 }
 
 function renderState(state, result) {
-  document.getElementById("heart-status").textContent = result.output.status;
-  document.getElementById("heart-summary").textContent = result.output.heartStatus;
-  document.getElementById("recommendation-title").textContent =
-    result.output.movementRecommendation;
-  document.getElementById("recommendation-copy").textContent =
-    result.output.reason;
-  document.getElementById("caregiver-status").textContent = String(
-    result.output.caregiverAlert
-  );
-  document.getElementById("alert-state").textContent = `Next check: ${result.output.nextCheckMinutes} min`;
-  const concernPill = document.getElementById("concern-pill");
-  concernPill.textContent =
-    result.output.status === "NORMAL"
-      ? "Not concerning right now"
-      : result.output.status === "MONITOR"
-        ? "Worth monitoring"
-        : result.output.status === "CAUTION"
-          ? "Somewhat concerning"
-          : result.output.status === "ALERT"
-            ? "Concerning"
-            : "Urgent concern";
+  const { output, rules, normalizedState } = result;
+  document.getElementById("heart-status").textContent = output.status;
+  document.getElementById("heart-summary").textContent = output.assessment;
+  document.getElementById("recommendation-title").textContent = output.recommendation;
+  document.getElementById("recommendation-copy").textContent = output.reason;
+  document.getElementById("action-timing").textContent = output.actionTiming;
+  document.getElementById("decision-trigger").textContent = output.trigger;
+  document.getElementById("trigger-meta").textContent = output.triggerMeta;
+  document.getElementById("caregiver-status").textContent = output.caregiverAlert ? "On" : "Off";
+  document.getElementById("alert-state").textContent = output.escalationStatus;
+  document.getElementById("baseline-window").textContent = `${output.baselineWindow} (${formatBpmRange(
+    normalizedState.baselineLow,
+    normalizedState.baselineHigh
+  )})`;
+  document.getElementById("data-integrity").textContent = output.dataIntegrity;
 
   const heroCard = document.getElementById("hero-status-card");
-  const severity =
-    result.output.status === "CRITICAL" || result.output.status === "ALERT"
-      ? "red"
-      : result.output.status === "CAUTION" || result.output.status === "MONITOR"
-        ? "amber"
-        : "green";
-
-  heroCard.style.borderColor =
-    severity === "red"
-      ? "rgba(255, 115, 104, 0.26)"
-      : severity === "amber"
-        ? "rgba(255, 177, 26, 0.24)"
-        : "rgba(87, 239, 114, 0.22)";
-  concernPill.style.background =
-    severity === "red"
-      ? "rgba(255, 115, 104, 0.16)"
-      : severity === "amber"
-        ? "rgba(255, 177, 26, 0.16)"
-        : "rgba(87, 239, 114, 0.14)";
-  concernPill.style.color =
-    severity === "red"
-      ? "#ffd0cc"
-      : severity === "amber"
-        ? "#ffe0a1"
-        : "#bbf6c6";
-  const reasoning = buildReasoningText(result);
-  document.getElementById("reasoning-title").textContent = reasoning.title;
-  document.getElementById("reasoning-copy").textContent = reasoning.copy;
-  document.getElementById("reasoning-meta").textContent = reasoning.meta;
+  const concernPill = document.getElementById("concern-pill");
+  const style = severityStyles[output.status] || severityStyles.MONITOR;
+  heroCard.style.borderColor = style.border;
+  heroCard.style.background = style.background;
+  concernPill.textContent = style.chip;
+  concernPill.style.background = style.chipBackground;
+  concernPill.style.color = style.chipColor;
 
   const ruleStack = document.getElementById("rule-stack");
   ruleStack.innerHTML = "";
-  result.rules.forEach((item) => {
-    const node = document.createElement("article");
+  rules.forEach((item) => {
+    const node = document.createElement("li");
     node.className = `rule-item ${item.severity}`;
     node.innerHTML = `<strong>${item.label}</strong><small>${item.detail}</small>`;
     ruleStack.appendChild(node);
@@ -497,18 +461,51 @@ function renderState(state, result) {
   })}`;
 }
 
+function readStateFromForm() {
+  if (!monitorForm) return loadState();
+  const next = {};
+  Object.entries(fieldIds).forEach(([key, id]) => {
+    const element = document.getElementById(id);
+    if (element.type === "checkbox") {
+      next[key] = element.checked;
+    } else if (element.tagName === "SELECT") {
+      next[key] = element.value;
+    } else if (element.type === "number") {
+      next[key] = element.value === "" ? null : Number(element.value);
+    } else {
+      next[key] = element.value;
+    }
+  });
+  return next;
+}
+
+function writeStateToForm(state) {
+  if (!monitorForm) return;
+  Object.entries(fieldIds).forEach(([key, id]) => {
+    const element = document.getElementById(id);
+    if (!element) return;
+    if (element.type === "checkbox") {
+      element.checked = Boolean(state[key]);
+    } else if (element.tagName === "SELECT") {
+      element.value = state[key];
+    } else {
+      element.value = state[key] ?? "";
+    }
+  });
+}
+
 function runEvaluation() {
   const state = readStateFromForm();
   saveState(state);
   const result = evaluateState(state);
-  renderPayload(state, result);
+  renderPayload(result.normalizedState);
   renderState(state, result);
 }
 
 const initialState = loadState();
 writeStateToForm(initialState);
 const initialResult = evaluateState(initialState);
-renderPayload(initialState, initialResult);
+renderPayload(initialResult.normalizedState);
 renderState(initialState, initialResult);
 
 monitorForm.addEventListener("input", runEvaluation);
@@ -517,8 +514,8 @@ resetButton.addEventListener("click", () => {
   writeStateToForm(defaultState);
   saveState(defaultState);
   const resetResult = evaluateState(defaultState);
-  renderPayload(defaultState, resetResult);
+  renderPayload(resetResult.normalizedState);
   renderState(defaultState, resetResult);
 });
+
 applyApiPayloadButton.disabled = true;
-applyApiPayloadButton.textContent = "Live updates on";
